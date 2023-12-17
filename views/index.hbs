@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="main">
+        <div id="microphone-icon" onclick="toggleMicrophone()">
+            <i class="bi bi-mic-mute" id="mic-image"></i>
+            <p id="microphone-state">Muted</p>
+        </div>
+    </div>
+    <br><br>
+    <div class="main">
+        <div class="userlist">
+            <div class="header">
+                <h2>Joined Users</h2>
+            </div>
+            <div class="fixed">          
+            </div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+    
+</body>
+
+</html>

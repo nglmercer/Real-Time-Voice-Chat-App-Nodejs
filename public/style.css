@@ -1,0 +1,105 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Roboto', sans-serif;
+}
+
+body {
+    margin: 20px;
+    background-color: #000;
+
+    height: 100%;
+}
+
+.main {
+    display: flex;
+    justify-content: center;
+}
+
+#microphone-icon {
+    cursor: pointer;
+    border: 2px solid red;
+    padding: 100px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    user-select: none;
+    height: 300px;
+    width: 300px;
+
+    p {
+        color: #008080;
+        font-size: 25px;
+        margin-top: 20px;
+    }
+}
+
+.userlist {
+    width: 90%;
+    background-color: rgb(24, 24, 24);
+    display: grid;
+    grid-template-rows: 1fr;
+    gap: 10px;
+    overflow-y: auto;
+
+    /* For WebKit (Chrome, Safari, etc.) */
+    &::-webkit-scrollbar {
+        width: 1px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: rgb(24, 24, 24);
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background-color: #ffffff;
+        border-radius: 6px;
+        border: 3px solid #ffffff;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+        background-color: #ffffff;
+    }
+
+    @media (max-width: 768px) {
+        overflow-y: visible;
+
+        /* or overflow: visible; */
+        &::-webkit-scrollbar {
+            display: none;
+            /* Hide the scrollbar */
+        }
+    }
+}
+
+
+.header {
+    height: 70px;
+    color: rgb(0, 136, 255);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding-left: 10px;
+    background-color: rgb(50, 50, 50);
+}
+
+.fixed {
+    height: 35vh;
+}
+
+.joineduser {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    padding: 10px;
+    background-color: rgb(50, 50, 50);
+    margin-bottom: 10px;
+}
+
+
+#mic-image {
+    font-size: 88px;
+    color: red;
+}
