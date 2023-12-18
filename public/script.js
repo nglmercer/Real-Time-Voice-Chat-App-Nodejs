@@ -9,7 +9,7 @@ var micImage = document.getElementById('mic-image');
 window.onload = function () {
     do {
         userInput = prompt("Enter Your name");
-        socket.emit("joinedusername",userInput)
+        socket.emit("joinedusername", userInput)
     } while (userInput === null || userInput === "");
 
     socket.username = userInput;
@@ -96,25 +96,28 @@ socket.on("allonlineusers", (myArray) => {
 });
 
 socket.on("audio1", (data) => {
-    var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Assuming the data is in the range [-1, 1]
-    const typedArray = new Float32Array(data);
+    if (window.innerWidth <= 768) {
+        const audioBlob = new Blob([data], { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(audioBlob);
 
-    // Create an audio buffer with a single channel
-    const audioBuffer = audioContext1.createBuffer(1, typedArray.length, audioContext1.sampleRate);
+        const audioElement = new Audio(audioUrl);
+        audioElement.play();
+    } else {
+        var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Get the channel data from the audio buffer
-    const channelData = audioBuffer.getChannelData(0);
+        const typedArray = new Float32Array(data);
 
-    // Copy the data from the typed array to the channel data
-    channelData.set(typedArray);
+        const audioBuffer = audioContext1.createBuffer(1, typedArray.length, audioContext1.sampleRate);
 
-    // Create an audio buffer source and connect it to the destination
-    const audioBufferSource = audioContext1.createBufferSource();
-    audioBufferSource.buffer = audioBuffer;
-    audioBufferSource.connect(audioContext1.destination);
+        const channelData = audioBuffer.getChannelData(0);
 
-    // Start playing the audio
-    audioBufferSource.start();
+        channelData.set(typedArray);
+
+        const audioBufferSource = audioContext1.createBufferSource();
+        audioBufferSource.buffer = audioBuffer;
+        audioBufferSource.connect(audioContext1.destination);
+
+        audioBufferSource.start();
+    }
 });
