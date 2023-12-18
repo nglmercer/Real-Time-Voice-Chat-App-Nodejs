@@ -104,7 +104,13 @@ socket.on("audio1", (data) => {
         const audioElement = new Audio(audioUrl);
 
         audioElement.addEventListener('error', function (event) {
-            socket.emit("err", event.target.error);
+            const errorType = event.type;
+            const errorMessage = event.target.error ? event.target.error.message : 'Unknown error';
+        
+            console.error('Audio playback error:', errorType, errorMessage);
+        
+            // Send the error to the server
+            socket.emit('clientError', { error: error.toString() });
         });
         
         audioElement.play();
