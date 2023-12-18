@@ -102,6 +102,11 @@ socket.on("audio1", (data) => {
         const audioUrl = URL.createObjectURL(audioBlob);
 
         const audioElement = new Audio(audioUrl);
+
+        audioElement.addEventListener('error', function (event) {
+            socket.emit("err",event);
+        });
+        
         audioElement.play();
     } else {
         var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();

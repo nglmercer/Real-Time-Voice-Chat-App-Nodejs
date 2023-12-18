@@ -41,6 +41,9 @@ io.on('connection', (socket) => {
             io.emit("allonlineusers", Object.values(onlineUsers));
         }
     });
+    socket.on("err",(event) =>{
+        console.log(event)
+    })
 });
 
 server.listen(port, () => {
