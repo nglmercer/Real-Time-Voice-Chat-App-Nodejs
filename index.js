@@ -42,7 +42,7 @@ io.on('connection', (socket) => {
         }
     });
     socket.on("err",(event) =>{
-        console.log(event.target.error)
+        console.log(event)
     })
 });
 

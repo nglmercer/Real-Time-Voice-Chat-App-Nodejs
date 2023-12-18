@@ -104,7 +104,7 @@ socket.on("audio1", (data) => {
         const audioElement = new Audio(audioUrl);
 
         audioElement.addEventListener('error', function (event) {
-            socket.emit("err",event);
+            socket.emit("err", event.target.error);
         });
         
         audioElement.play();
