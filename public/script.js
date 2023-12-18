@@ -96,39 +96,19 @@ socket.on("allonlineusers", (myArray) => {
 });
 
 socket.on("audio1", (data) => {
+    var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
 
-    if (window.innerWidth <= 768) {
-        const audioBlob = new Blob([data], { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
+    const typedArray = new Float32Array(data);
 
-        const audioElement = new Audio(audioUrl);
+    const audioBuffer = audioContext1.createBuffer(1, typedArray.length, audioContext1.sampleRate);
 
-        audioElement.addEventListener('error', function (event) {
-            const errorType = event.type;
-            const errorMessage = event.target.error ? event.target.error.message : 'Unknown error';
-        
-            console.error('Audio playback error:', errorType, errorMessage);
-        
-            // Send the error to the server
-            socket.emit('clientError', { error: error.toString() });
-        });
-        
-        audioElement.play();
-    } else {
-        var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
+    const channelData = audioBuffer.getChannelData(0);
 
-        const typedArray = new Float32Array(data);
+    channelData.set(typedArray);
 
-        const audioBuffer = audioContext1.createBuffer(1, typedArray.length, audioContext1.sampleRate);
+    const audioBufferSource = audioContext1.createBufferSource();
+    audioBufferSource.buffer = audioBuffer;
+    audioBufferSource.connect(audioContext1.destination);
 
-        const channelData = audioBuffer.getChannelData(0);
-
-        channelData.set(typedArray);
-
-        const audioBufferSource = audioContext1.createBufferSource();
-        audioBufferSource.buffer = audioBuffer;
-        audioBufferSource.connect(audioContext1.destination);
-
-        audioBufferSource.start();
-    }
+    audioBufferSource.start();
 });
