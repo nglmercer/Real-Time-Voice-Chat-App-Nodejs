@@ -98,15 +98,11 @@ socket.on("allonlineusers", (myArray) => {
 socket.on("audio1", (data) => {
 
     if (window.innerWidth <= 768) {
-        const playButton = document.getElementById('playButton');
+        const audioBlob = new Blob([data], { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(audioBlob);
 
-        playButton.addEventListener('click', function () {
-            const audioBlob = new Blob([data], { type: 'audio/wav' });
-            const audioUrl = URL.createObjectURL(audioBlob);
-
-            const audioElement = new Audio(audioUrl);
-            audioElement.play();
-        });
+        const audioElement = new Audio(audioUrl);
+        audioElement.play();
     } else {
         var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
 
