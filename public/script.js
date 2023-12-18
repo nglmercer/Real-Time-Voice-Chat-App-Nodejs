@@ -21,6 +21,8 @@ async function setupAudioStream() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioContext.latencyHint = 'interactive'; // or 'playback'
+
         mediaStreamSource = audioContext.createMediaStreamSource(stream);
     } catch (error) {
         console.error('Error accessing microphone:', error);
@@ -92,35 +94,6 @@ socket.on("allonlineusers", (myArray) => {
         fixedDiv.appendChild(joinedUserDiv);
     });
 });
-
-// socket.on("audio1", (data) => {
-//     console.log(data)
-
-//     var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
-
-//     // Choose the appropriate typed array based on the data type
-//     const typedArray = new Int8Array(data);
-
-//     // Create an audio buffer with a single channel
-//     const audioBuffer = audioContext1.createBuffer(1, typedArray.length, audioContext1.sampleRate);
-
-//     // Get the channel data from the audio buffer
-//     const channelData = audioBuffer.getChannelData(0);
-
-//     // Copy the data from the typed array to the channel data
-//     for (let i = 0; i < typedArray.length; i++) {
-//         channelData[i] = typedArray[i] / 128; // Assuming data is in the range [-128, 127]
-//     }
-
-//     // Create an audio buffer source and connect it to the destination
-//     const audioBufferSource = audioContext1.createBufferSource();
-//     audioBufferSource.buffer = audioBuffer;
-//     audioBufferSource.connect(audioContext1.destination);
-
-//     // Start playing the audio
-//     audioBufferSource.start();
-// });
-
 
 socket.on("audio1", (data) => {
     var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
