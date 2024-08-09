@@ -126,9 +126,10 @@ let localStream;
 let userInput;
 let microphoneState = document.getElementById('microphone-state');
 let micImage = document.getElementById('mic-image');
+const mictoggleaudio = document.getElementById('mic-toggle-button');
 let voiceIndicator = document.getElementById('voice-indicator');
 let peerManager;
-
+mictoggleaudio.addEventListener('click', toggleMicrophone);
 window.onload = function () {
     do {
         userInput = prompt("Enter Your name");
