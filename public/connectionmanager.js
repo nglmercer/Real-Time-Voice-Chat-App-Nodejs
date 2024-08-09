@@ -1,11 +1,11 @@
 export class PeerConnectionManager {
     constructor(socket, localStream) {
-        this.socket = socket; // Socket utilizado para comunicarse con el servidor y otros peers.
-        this.localStream = localStream; // Flujo local de medios (audio/video) que se enviará a otros peers.
-        this.peerConnections = {}; // Almacena las conexiones P2P activas, con la clave siendo el userId del peer.
-        this.remoteIndicators = {}; // Almacena los indicadores de actividad de audio de los peers remotos.
-        this.mediaCallbacks = {}; // Diccionario para almacenar callbacks específicos para cada tipo de medios.
-        this.initializeSocketEvents(); // Configura los eventos del socket.
+        this.socket = socket;
+        this.localStream = localStream;
+        this.peerConnections = {};
+        this.remoteIndicators = {};
+        this.mediaCallbacks = {};
+        this.initializeSocketEvents();
     }
 
     // Método para registrar callbacks para diferentes tipos de medios (audio/video).
@@ -15,40 +15,41 @@ export class PeerConnectionManager {
     }
     createPeerConnection(userId) {
         const peerConnection = new RTCPeerConnection();
-
+    
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 this.socket.emit('ice-candidate', { candidate: event.candidate, to: userId });
-                console.log('ICE candidate sent:', event.candidate);
             }
         };
-
-        // Modificar el evento ontrack para manejar diferentes tipos de medios.
+    
         peerConnection.ontrack = (event) => {
-            console.log("Remote event received:", event);
-            console.log('Remote track received:', event.streams[0]);
-        
             event.streams[0].getTracks().forEach(track => {
                 if (track.kind in this.mediaCallbacks) {
-                    // Llamar al callback registrado para este tipo de medio (audio/video).
                     this.mediaCallbacks[track.kind](event.streams[0], userId);
-                } else {
-                    console.log(`No callback registered for media type: ${track.kind}`);
                 }
             });
         };
-        
-
-        this.localStream.getTracks().forEach(track => peerConnection.addTrack(track, this.localStream));
+    
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => peerConnection.addTrack(track, this.localStream));
+        }
+    
         this.peerConnections[userId] = peerConnection;
         return peerConnection;
     }
+    
 
     handleOffer(offer, userId) {
-        // Maneja una oferta SDP recibida de otro peer.
         const peerConnection = this.createPeerConnection(userId);
         peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
-            .then(() => peerConnection.createAnswer()) // Crea una respuesta SDP.
+            .then(() => {
+                if (this.localStream) {
+                    return peerConnection.createAnswer(); // Crea una respuesta SDP si el usuario es un participante.
+                } else {
+                    // Si el usuario es un espectador, responde con una conexión sin enviar media.
+                    return peerConnection.createAnswer({ offerToReceiveVideo: true });
+                }
+            })
             .then(answer => {
                 peerConnection.setLocalDescription(answer); // Establece la descripción local con la respuesta.
                 this.socket.emit('answer', { answer, to: userId }); // Envía la respuesta al peer remoto.
@@ -56,6 +57,7 @@ export class PeerConnectionManager {
             })
             .catch(error => console.error('Error handling offer:', error));
     }
+    
 
     handleAnswer(answer, userId) {
         // Maneja la respuesta SDP de un peer remoto.

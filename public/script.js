@@ -20,9 +20,23 @@ window.onload = function () {
 
     socket.username = userInput;
 
-    // Enumerar dispositivos de video
-    enumerateMediaDevices();
+    let role = prompt("Do you want to join as a '1' or '2'? (type 'spectator 1' or 'participant 2')");
+
+    socket.role = role; // Guardar el rol del usuario en el socket
+
+    socket.emit('setRole', role);
+
+    if (role === '2') {
+        // Enumerar dispositivos de video si el usuario es un participante
+        enumerateMediaDevices();
+    } else {
+        // Configurar el peerManager sin un stream local para espectadores
+        peerManager = new PeerConnectionManager(socket, null);
+        socket.emit('ready', socket.username);
+        registerMediaCallback();
+    }
 };
+
 
 // Enumerar las cámaras disponibles y permitir al usuario seleccionar una
 async function enumerateMediaDevices() {
@@ -84,25 +98,26 @@ async function setupLocalStream(videoDeviceId, shareScreen = false) {
 
         peerManager = new PeerConnectionManager(socket, localStream);
         socket.emit('ready', socket.username);
-
-        peerManager.registerMediaCallback('video', (remoteStream, userId) => {
-            const remoteVideo = document.createElement('video');
-            remoteVideo.className = 'remote-video';
-            remoteVideo.srcObject = remoteStream;
-            remoteVideo.autoplay = true;
-            remoteVideo.playsInline = true;
-            remoteVideo.controls = true;
-
-            document.body.appendChild(remoteVideo);
-            console.log(`Remote video from ${userId} is playing.`);
-        });
-
+        registerMediaCallback();
     } catch (error) {
         console.error('Error accessing media stream:', error);
         alert(`Failed to access media stream: ${error.message}`);
     }
 }
-
+function registerMediaCallback() {
+    peerManager.registerMediaCallback('video', (remoteStream, userId) => {
+        const remoteVideo = document.createElement('video');
+        remoteVideo.className = 'remote-video';
+        remoteVideo.srcObject = remoteStream;
+        remoteVideo.autoplay = true;
+        remoteVideo.playsInline = true;
+        remoteVideo.controls = true;
+    
+        document.body.appendChild(remoteVideo);
+        console.log(`Remote video from ${userId} is playing.`);
+    });
+    
+}
 function toggleMicrophone() {
     const audioTracks = localStream ? localStream.getAudioTracks() : [];
 
