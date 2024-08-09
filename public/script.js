@@ -1,11 +1,133 @@
-const socket = io();
+class PeerConnectionManager {
+    constructor(socket, localStream) {
+        this.socket = socket;
+        this.localStream = localStream;
+        this.peerConnections = {};
+        this.remoteIndicators = {};
+        this.initializeSocketEvents();
+    }
 
-var userInput;
-var microphoneState = document.getElementById('microphone-state');
-var audioContext;
-var mediaStreamSource;
-var micImage = document.getElementById('mic-image');
-var voiceIndicator = document.getElementById('voice-indicator'); // Indicador de voz
+    createPeerConnection(userId) {
+        const peerConnection = new RTCPeerConnection();
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.socket.emit('ice-candidate', { candidate: event.candidate, to: userId });
+                console.log('ICE candidate sent:', event.candidate);
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            console.log('Remote track received:', event.streams[0]);
+            const remoteAudio = new Audio();
+            remoteAudio.srcObject = event.streams[0];
+            remoteAudio.play().then(() => {
+                console.log('Remote audio is playing.');
+                this.setupRemoteIndicator(event.streams[0]);
+            }).catch(error => {
+                console.error('Error playing remote audio:', error);
+            });
+        };
+
+        this.localStream.getTracks().forEach(track => peerConnection.addTrack(track, this.localStream));
+        this.peerConnections[userId] = peerConnection;
+        return peerConnection;
+    }
+
+    handleOffer(offer, userId) {
+        const peerConnection = this.createPeerConnection(userId);
+        peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
+            .then(() => peerConnection.createAnswer())
+            .then(answer => {
+                peerConnection.setLocalDescription(answer);
+                this.socket.emit('answer', { answer, to: userId });
+                console.log('Answer sent:', answer);
+            })
+            .catch(error => console.error('Error handling offer:', error));
+    }
+
+    handleAnswer(answer, userId) {
+        const peerConnection = this.peerConnections[userId];
+        peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
+            .catch(error => console.error('Error handling answer:', error));
+    }
+
+    handleIceCandidate(candidate, userId) {
+        const peerConnection = this.peerConnections[userId];
+        peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+            .catch(error => console.error('Error adding received ice candidate:', error));
+    }
+
+    setupRemoteIndicator(remoteStream) {
+        const audioContext = new AudioContext();
+        const analyser = audioContext.createAnalyser();
+        const microphone = audioContext.createMediaStreamSource(remoteStream);
+        microphone.connect(analyser);
+        analyser.fftSize = 256;
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        const indicator = document.createElement('div');
+        indicator.className = 'voice-indicator';
+        document.body.appendChild(indicator);
+
+        const updateRemoteIndicator = () => {
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            const color = average > 50 ? 'green' : 'red';
+            indicator.style.backgroundColor = color;
+            requestAnimationFrame(updateRemoteIndicator);
+        };
+
+        updateRemoteIndicator();
+        this.remoteIndicators[remoteStream.id] = indicator;
+    }
+
+    initializeSocketEvents() {
+        this.socket.on('ready', (userId) => {
+            if (userId !== this.socket.id && !this.peerConnections[userId]) {
+                const peerConnection = this.createPeerConnection(userId);
+
+                peerConnection.createOffer()
+                    .then(offer => peerConnection.setLocalDescription(offer))
+                    .then(() => {
+                        this.socket.emit('offer', { offer: peerConnection.localDescription, to: userId });
+                        console.log('Offer sent:', peerConnection.localDescription);
+                    })
+                    .catch(error => console.error('Error creating offer:', error));
+            }
+        });
+
+        this.socket.on('offer', ({ offer, from }) => {
+            this.handleOffer(offer, from);
+        });
+
+        this.socket.on('answer', ({ answer, from }) => {
+            this.handleAnswer(answer, from);
+        });
+
+        this.socket.on('ice-candidate', ({ candidate, from }) => {
+            this.handleIceCandidate(candidate, from);
+        });
+    }
+
+    getUserInfo(userId) {
+        return {
+            userId: userId,
+            peerConnection: this.peerConnections[userId],
+        };
+    }
+
+    getAllUsersInfo() {
+        return Object.keys(this.peerConnections).map(userId => this.getUserInfo(userId));
+    }
+}
+const socket = io();
+let localStream;
+let userInput;
+let microphoneState = document.getElementById('microphone-state');
+let micImage = document.getElementById('mic-image');
+let voiceIndicator = document.getElementById('voice-indicator');
+let peerManager;
 
 window.onload = function () {
     do {
@@ -15,146 +137,92 @@ window.onload = function () {
 
     socket.username = userInput;
 
-    setupAudioStream();
+    // Enumerar dispositivos de audio
+    enumerateMicrophones();
+};
+
+// Enumerar los micrófonos disponibles y permitir al usuario seleccionar uno
+async function enumerateMicrophones() {
+    try {
+        if (!navigator.mediaDevices?.enumerateDevices) {
+            console.log("enumerateDevices() not supported.");
+          } else{
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevices = devices.filter(device => device.kind === 'audioinput');
+
+        if (audioDevices.length > 0) {
+            let options = audioDevices.map((device, index) => `${index + 1}: ${device.label || 'Microphone ' + (index + 1)}`).join('\n');
+            let selectedDeviceIndex;
+
+            do {
+                selectedDeviceIndex = parseInt(prompt(`Select a microphone:\n${options}`)) - 1;
+            } while (isNaN(selectedDeviceIndex) || selectedDeviceIndex < 0 || selectedDeviceIndex >= audioDevices.length);
+
+            const selectedDeviceId = audioDevices[selectedDeviceIndex].deviceId;
+            await setupLocalStream(selectedDeviceId);
+        } else {
+            alert('No microphones found.');
+        }
+          }
+    } catch (error) {
+        console.error('Error enumerating devices:', error);
+    }
 }
 
-async function setupAudioStream() {
+// Configurar el flujo de medios local utilizando el micrófono seleccionado
+async function setupLocalStream(deviceId) {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        audioContext.latencyHint = 'interactive'; // or 'playback'
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: deviceId } });
+        console.log('Microphone access granted.');
 
-        mediaStreamSource = audioContext.createMediaStreamSource(stream);
-
-        await audioContext.audioWorklet.addModule('processor.js'); // Cargar el módulo del procesador de audio
+        peerManager = new PeerConnectionManager(socket, localStream);
+        socket.emit('ready', socket.username);
+        setupLocalIndicator();
     } catch (error) {
         console.error('Error accessing microphone:', error);
     }
 }
 
+function setupLocalIndicator() {
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const microphone = audioContext.createMediaStreamSource(localStream);
+    microphone.connect(analyser);
+    analyser.fftSize = 256;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+    function updateIndicator() {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        const color = average > 50 ? 'green' : 'red';
+        voiceIndicator.style.backgroundColor = color;
+        requestAnimationFrame(updateIndicator);
+    }
+
+    updateIndicator();
+}
+
 function toggleMicrophone() {
-    if (micImage.classList.contains('bi-mic-mute')) {
+    const audioTracks = localStream.getAudioTracks();
+
+    if (audioTracks.length === 0) {
+        console.log('No audio track available.');
+        return;
+    }
+
+    const isMuted = !audioTracks[0].enabled;
+
+    if (isMuted) {
+        audioTracks.forEach(track => track.enabled = true);
         micImage.classList.remove('bi-mic-mute');
         micImage.classList.add('bi-mic');
         microphoneState.textContent = "Unmuted";
-
-        // Iniciar transmisión de datos de audio al servidor
-        startStreaming();
+        console.log('Microphone unmuted.');
     } else {
+        audioTracks.forEach(track => track.enabled = false);
         micImage.classList.remove('bi-mic');
         micImage.classList.add('bi-mic-mute');
         microphoneState.textContent = "Muted";
-
-        // Detener transmisión de datos de audio al servidor
-        stopStreaming();
-    }
-}
-
-function startStreaming() {
-    const node = new AudioWorkletNode(audioContext, 'audio-processor');
-
-    node.port.onmessage = (event) => {
-        const audioData = event.data;
-
-        // Indicador de voz según nivel de audio
-        const maxLevel = Math.max(...audioData);
-        if (maxLevel > 0.01) { // Umbral para indicar que se está hablando
-            voiceIndicator.style.backgroundColor = "green";
-        } else {
-            voiceIndicator.style.backgroundColor = "red";
-        }
-
-        // Enviar los datos de audio al servidor
-        if (!micImage.classList.contains('bi-mic-mute')) {
-            socket.emit("audio", audioData);
-        }
-    };
-
-    mediaStreamSource.connect(node);
-    // No conectamos el node a audioContext.destination para evitar escucharte a ti mismo
-}
-
-function stopStreaming() {
-    // Desconectar mediaStreamSource de cualquier nodo
-    mediaStreamSource.disconnect();
-    voiceIndicator.style.backgroundColor = "red"; // Indicador de que no se está transmitiendo
-}
-
-// Código restante igual
-socket.on("allonlineusers", (myArray) => {
-    const fixedDiv = document.querySelector(".fixed");
-
-    fixedDiv.innerHTML = "";
-
-    myArray.forEach((user) => {
-        const joinedUserDiv = document.createElement("div");
-        joinedUserDiv.className = "joineduser";
-
-        const h2Element = document.createElement("h2");
-
-        const userSpan = document.createElement("span");
-        userSpan.textContent = user;
-
-        h2Element.appendChild(userSpan);
-
-        joinedUserDiv.appendChild(h2Element);
-
-        fixedDiv.appendChild(joinedUserDiv);
-    });
-});
-let mediaSource;
-let sourceBuffer;
-let queue = []; // Cola para almacenar los ArrayBuffers que llegan
-
-socket.on("audio1", (data) => {
-    if (!mediaSource) {
-        mediaSource = new MediaSource();
-        audioElement = document.createElement('audio');
-        audioElement.src = URL.createObjectURL(mediaSource);
-        audioElement.controls = true;
-        document.body.appendChild(audioElement);
-
-        mediaSource.addEventListener('sourceopen', () => {
-            sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="vorbis"');
-            
-            // Procesar la cola si hay datos almacenados
-            processQueue();
-            
-            sourceBuffer.addEventListener('updateend', () => {
-                // Revisa si hay más datos en la cola para agregar al buffer
-                if (queue.length > 0) {
-                    processQueue();
-                } else {
-                    mediaSource.endOfStream(); // Finaliza el stream si no hay más datos
-                    audioElement.play(); // Inicia la reproducción
-                }
-            });
-
-            sourceBuffer.addEventListener('error', (e) => {
-                console.error('Error in SourceBuffer:', e);
-                audioElement.pause();
-                audioElement.currentTime = 0; // Reinicia el audio en caso de error
-            });
-        });
-    }
-
-    // Agrega los datos entrantes a la cola
-    queue.push(data);
-
-    // Si el sourceBuffer ya está abierto y no está ocupado, procesa la cola inmediatamente
-    if (sourceBuffer && !sourceBuffer.updating) {
-        processQueue();
-    }
-});
-
-function processQueue() {
-    if (queue.length > 0 && sourceBuffer && !sourceBuffer.updating) {
-        const data = queue.shift();
-        try {
-            sourceBuffer.appendBuffer(data);
-        } catch (e) {
-            console.error('Error appending buffer:', e);
-            queue.unshift(data); // Reintroduce el buffer en la cola en caso de error
-        }
+        console.log('Microphone muted.');
     }
 }
