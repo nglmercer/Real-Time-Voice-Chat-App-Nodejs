@@ -5,11 +5,12 @@ var microphoneState = document.getElementById('microphone-state');
 var audioContext;
 var mediaStreamSource;
 var micImage = document.getElementById('mic-image');
+var voiceIndicator = document.getElementById('voice-indicator'); // Indicador de voz
 
 window.onload = function () {
     do {
         userInput = prompt("Enter Your name");
-        socket.emit("joinedusername", userInput)
+        socket.emit("joinedusername", userInput);
     } while (userInput === null || userInput === "");
 
     socket.username = userInput;
@@ -24,6 +25,8 @@ async function setupAudioStream() {
         audioContext.latencyHint = 'interactive'; // or 'playback'
 
         mediaStreamSource = audioContext.createMediaStreamSource(stream);
+
+        await audioContext.audioWorklet.addModule('processor.js'); // Cargar el módulo del procesador de audio
     } catch (error) {
         console.error('Error accessing microphone:', error);
     }
@@ -35,44 +38,49 @@ function toggleMicrophone() {
         micImage.classList.add('bi-mic');
         microphoneState.textContent = "Unmuted";
 
-        // Connect the media stream source to the audio context destination
-        //mediaStreamSource.connect(audioContext.destination);
-
-        // Start sending audio data to the server in real-time
+        // Iniciar transmisión de datos de audio al servidor
         startStreaming();
     } else {
         micImage.classList.remove('bi-mic');
         micImage.classList.add('bi-mic-mute');
         microphoneState.textContent = "Muted";
 
-        // Stop sending audio data to the server
+        // Detener transmisión de datos de audio al servidor
         stopStreaming();
     }
 }
 
 function startStreaming() {
-    const bufferSize = 2048;
-    const scriptNode = audioContext.createScriptProcessor(bufferSize, 1, 1);
+    const node = new AudioWorkletNode(audioContext, 'audio-processor');
 
-    scriptNode.onaudioprocess = function (audioProcessingEvent) {
-        const inputBuffer = audioProcessingEvent.inputBuffer;
-        const audioData = inputBuffer.getChannelData(0);
+    node.port.onmessage = (event) => {
+        const audioData = event.data;
 
-        // Send the audio data to the server
+        // Indicador de voz según nivel de audio
+        const maxLevel = Math.max(...audioData);
+        if (maxLevel > 0.01) { // Umbral para indicar que se está hablando
+            voiceIndicator.style.backgroundColor = "green";
+        } else {
+            voiceIndicator.style.backgroundColor = "red";
+        }
+
+        // Enviar los datos de audio al servidor
         if (!micImage.classList.contains('bi-mic-mute')) {
             socket.emit("audio", audioData);
         }
     };
 
-    mediaStreamSource.connect(scriptNode);
-    scriptNode.connect(audioContext.destination);
+    mediaStreamSource.connect(node);
+    // No conectamos el node a audioContext.destination para evitar escucharte a ti mismo
 }
 
 function stopStreaming() {
-    // Disconnect the script node from the audio context
+    // Desconectar mediaStreamSource de cualquier nodo
     mediaStreamSource.disconnect();
+    voiceIndicator.style.backgroundColor = "red"; // Indicador de que no se está transmitiendo
 }
 
+// Código restante igual
 socket.on("allonlineusers", (myArray) => {
     const fixedDiv = document.querySelector(".fixed");
 
@@ -94,21 +102,59 @@ socket.on("allonlineusers", (myArray) => {
         fixedDiv.appendChild(joinedUserDiv);
     });
 });
+let mediaSource;
+let sourceBuffer;
+let queue = []; // Cola para almacenar los ArrayBuffers que llegan
 
 socket.on("audio1", (data) => {
-    var audioContext1 = new (window.AudioContext || window.webkitAudioContext)();
+    if (!mediaSource) {
+        mediaSource = new MediaSource();
+        audioElement = document.createElement('audio');
+        audioElement.src = URL.createObjectURL(mediaSource);
+        audioElement.controls = true;
+        document.body.appendChild(audioElement);
 
-    const typedArray = new Float32Array(data);
+        mediaSource.addEventListener('sourceopen', () => {
+            sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="vorbis"');
+            
+            // Procesar la cola si hay datos almacenados
+            processQueue();
+            
+            sourceBuffer.addEventListener('updateend', () => {
+                // Revisa si hay más datos en la cola para agregar al buffer
+                if (queue.length > 0) {
+                    processQueue();
+                } else {
+                    mediaSource.endOfStream(); // Finaliza el stream si no hay más datos
+                    audioElement.play(); // Inicia la reproducción
+                }
+            });
 
-    const audioBuffer = audioContext1.createBuffer(1, typedArray.length, audioContext1.sampleRate);
+            sourceBuffer.addEventListener('error', (e) => {
+                console.error('Error in SourceBuffer:', e);
+                audioElement.pause();
+                audioElement.currentTime = 0; // Reinicia el audio en caso de error
+            });
+        });
+    }
 
-    const channelData = audioBuffer.getChannelData(0);
+    // Agrega los datos entrantes a la cola
+    queue.push(data);
 
-    channelData.set(typedArray);
-
-    const audioBufferSource = audioContext1.createBufferSource();
-    audioBufferSource.buffer = audioBuffer;
-    audioBufferSource.connect(audioContext1.destination);
-
-    audioBufferSource.start();
+    // Si el sourceBuffer ya está abierto y no está ocupado, procesa la cola inmediatamente
+    if (sourceBuffer && !sourceBuffer.updating) {
+        processQueue();
+    }
 });
+
+function processQueue() {
+    if (queue.length > 0 && sourceBuffer && !sourceBuffer.updating) {
+        const data = queue.shift();
+        try {
+            sourceBuffer.appendBuffer(data);
+        } catch (e) {
+            console.error('Error appending buffer:', e);
+            queue.unshift(data); // Reintroduce el buffer en la cola en caso de error
+        }
+    }
+}

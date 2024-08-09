@@ -28,8 +28,10 @@ io.on('connection', (socket) => {
         io.emit("allonlineusers", Object.values(onlineUsers));
     });
 
-    socket.on("audio", (data) => {
-        socket.broadcast.emit("audio1", data);
+    socket.on("audio", (audioData) => {
+        // Retransmitir el audio recibido a todos los demás clientes
+        console.log(audioData);
+        socket.broadcast.emit('audio1', audioData);
     });
 
     socket.on('disconnect', () => {
