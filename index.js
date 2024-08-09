@@ -1,20 +1,35 @@
 const fs = require('fs');
 const https = require('https');
+const http = require('http');
 const socketIO = require("socket.io");
 const path = require("path");
 const express = require("express");
 
 const app = express();
-
-// Leer certificados SSL
-const privateKey = fs.readFileSync('key.pem', 'utf8');
-const certificate = fs.readFileSync('cert.pem', 'utf8');
-const credentials = { key: privateKey, cert: certificate };
-
-const httpsServer = https.createServer(credentials, app);
-const io = socketIO(httpsServer);
-
 const port = 4001;
+
+let server;
+let io;
+
+// Intenta leer los certificados SSL
+let privateKey, certificate, credentials;
+
+try {
+    privateKey = fs.readFileSync('key.pem', 'utf8');
+    certificate = fs.readFileSync('cert.pem', 'utf8');
+    credentials = { key: privateKey, cert: certificate };
+
+    // Si las credenciales existen, inicia el servidor en HTTPS
+    server = https.createServer(credentials, app);
+    io = socketIO(server);
+    console.log("SSL credentials found. Starting HTTPS server...");
+} catch (error) {
+    console.log("SSL credentials not found. Starting HTTP server...");
+    
+    // Si no hay credenciales, inicia el servidor en HTTP
+    server = http.createServer(app);
+    io = socketIO(server);
+}
 
 const publicDir = path.join(__dirname, "./public");
 app.use(express.static(publicDir));
@@ -60,6 +75,6 @@ io.on('connection', (socket) => {
     });
 });
 
-httpsServer.listen(port, () => {
-    console.log(`Server is running on https://localhost:${port}`);
+server.listen(port, () => {
+    console.log(`Server is running on ${credentials ? 'https' : 'http'}://localhost:${port}`);
 });
