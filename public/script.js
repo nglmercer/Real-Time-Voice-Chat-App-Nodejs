@@ -5,7 +5,7 @@ let localStream;
 let userInput;
 let microphoneState = document.getElementById('microphone-state');
 let micImage = document.getElementById('mic-image');
-const mictoggleaudio = document.getElementById('mic-toggle-button');
+const mictoggleaudio = document.querySelector('.mic-toggle-button');
 let voiceIndicator = document.getElementById('voice-indicator');
 let localVideoElement = document.getElementById('local-video'); // Elemento de video local en HTML
 let peerManager;

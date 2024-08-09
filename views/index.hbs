@@ -11,7 +11,7 @@
 
 <body>
     <div class="main">
-        <div id="microphone-icon" onclick="toggleMicrophone()">
+        <div id="microphone-icon" class="mic-toggle-button">
             <i class="bi bi-mic-mute" id="mic-image"></i>
             <p id="microphone-state">Muted</p>
         </div>
@@ -28,7 +28,7 @@
         </div>
     </div>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js" type="module"></script>
     
 </body>
 
