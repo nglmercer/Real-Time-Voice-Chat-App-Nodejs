@@ -49,19 +49,23 @@ io.on('connection', (socket) => {
         io.emit("allonlineusers", Object.values(onlineUsers));
         io.emit("user-connected", username);
     });
-    socket.on('ready', (username) => {
-        socket.broadcast.emit('ready', socket.id);
+    socket.on('ready', (data) => {
+        console.log("ready", data, socket.id);
+        socket.broadcast.emit('ready', { userId: socket.id, role: data.role });
     });
 
     socket.on('offer', ({ offer, to }) => {
+        console.log("offer", offer, to);
         io.to(to).emit('offer', { offer, from: socket.id });
     });
 
     socket.on('answer', ({ answer, to }) => {
+        console.log("answer", answer, to);
         io.to(to).emit('answer', { answer, from: socket.id });
     });
 
     socket.on('ice-candidate', ({ candidate, to }) => {
+        console.log("ice-candidate", candidate, to);
         io.to(to).emit('ice-candidate', { candidate, from: socket.id });
     });
 

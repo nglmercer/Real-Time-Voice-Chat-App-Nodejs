@@ -63,6 +63,9 @@ export class PeerConnectionManager {
         // Maneja la respuesta SDP de un peer remoto.
         const peerConnection = this.peerConnections[userId];
         peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
+            .then(() => {
+                console.log("Answer received from", userId);
+            })
             .catch(error => console.error('Error handling answer:', error));
     }
 
@@ -100,7 +103,9 @@ export class PeerConnectionManager {
 
     initializeSocketEvents() {
         // Configura los eventos del socket para manejar las interacciones entre peers.
-        this.socket.on('ready', (userId) => {
+        this.socket.on('ready', (data) => {
+            const userId = data.userId;
+            console.log("ready", userId);
             if (userId !== this.socket.id && !this.peerConnections[userId]) {
                 const peerConnection = this.createPeerConnection(userId);
 
@@ -117,11 +122,13 @@ export class PeerConnectionManager {
 
         // Escucha ofertas SDP entrantes de otros peers.
         this.socket.on('offer', ({ offer, from }) => {
+            console.log("offer", offer, from);
             this.handleOffer(offer, from);
         });
 
         // Escucha respuestas SDP entrantes de otros peers.
         this.socket.on('answer', ({ answer, from }) => {
+            console.log("answer", answer, from);
             this.handleAnswer(answer, from);
         });
 

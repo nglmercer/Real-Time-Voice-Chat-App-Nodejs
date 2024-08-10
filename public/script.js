@@ -32,7 +32,7 @@ window.onload = function () {
     } else {
         // Configurar el peerManager sin un stream local para espectadores
         peerManager = new PeerConnectionManager(socket, null);
-        socket.emit('ready', socket.username);
+        socket.emit('ready', { username: socket.username, role: socket.role === '2' ? 'transmitter' : 'spectator' });
         registerMediaCallback();
     }
 };
